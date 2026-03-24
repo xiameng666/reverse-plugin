@@ -1,0 +1,2 @@
+[console_scripts]
+svcmon = svcmon_cli:cli

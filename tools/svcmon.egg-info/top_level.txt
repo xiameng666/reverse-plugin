@@ -1,0 +1,2 @@
+core
+svcmon_cli

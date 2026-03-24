@@ -1,0 +1,5 @@
+{
+  "name": "svcmon",
+  "version": "0.1.0",
+  "description": "Android APP syscall monitoring + AI analysis plugin"
+}
