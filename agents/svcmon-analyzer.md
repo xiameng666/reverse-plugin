@@ -23,31 +23,16 @@ model: inherit
 which svcmon 2>/dev/null || pip install -e "$(ls -d ~/.claude/plugins/cache/svcmon-plugin/re/*/tools/ | head -1)" 2>&1 | tail -3
 ```
 
-**0.2 用 AskUserQuestion 问两个配置（一次性问完）**
-
-问用户：
-```
-svcmon 首次配置：
-
-1. 报告输出目录？（回车默认 ~/re/svcmon）
-2. stackplz 本地路径？（回车自动从 GitHub 下载到 ~/.svcmon/stackplz）
-```
-
-用户可能的回答：
-- 直接回车 / 空 / "默认" → 用默认值
-- 给了输出路径 → 用用户给的路径
-- 给了 stackplz 路径 → 用用户给的路径，跳过下载
-
-**0.3 设置输出目录**
+**0.2 设置输出目录（从 prompt 参数拿，不问用户）**
 ```bash
-mkdir -p <用户给的路径或 ~/re/svcmon>
+mkdir -p <output_root 参数值或 ~/re/svcmon>
 svcmon config set output_root <路径>
 ```
 
-**0.4 获取 stackplz**
+**0.3 获取 stackplz**
 
-如果用户给了本地路径 → 直接用。
-如果回车/默认 → 自动下载：
+如果 prompt 里有 stackplz_local 路径 → 直接用。
+如果为空 → 自动下载：
 ```bash
 python -c "
 import urllib.request,json,os
@@ -61,7 +46,7 @@ print(f'Downloaded stackplz to {dest} ({os.path.getsize(dest)//1024}KB)')
 "
 ```
 
-**0.5 推送到设备（自动）**
+**0.4 推送到设备（自动）**
 ```bash
 MSYS_NO_PATHCONV=1 adb shell "su -c 'mkdir -p /data/local/tmp/re'"
 MSYS_NO_PATHCONV=1 adb push ~/.svcmon/stackplz /data/local/tmp/re/stackplz

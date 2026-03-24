@@ -9,25 +9,43 @@ description: 对 Android APP 进行 syscall 行为监控与检测分析。当用
 
 用户说 `/re:svcmon <包名>` 或 "监控APP"、"分析检测" 时使用。
 
-## 做什么
+## 你做三件事
 
-Spawn `re:svcmon-analyzer` subagent，把包名和 preset 传给它。它会自己完成全部流程：环境检查 → stackplz 采集 → trace 分析 → HTML 注入。
+### 1. 首次运行检查（用 AskUserQuestion）
 
-## 你只做两件事
+先跑：
+```bash
+which svcmon 2>/dev/null && svcmon config show 2>&1
+```
 
-1. **Spawn subagent**：
+如果 svcmon 没装或 config 为空 → 用 AskUserQuestion 问用户：
 
 ```
-prompt: "包名: <用户给的包名或关键词>, preset: <根据用户意图选的 preset>"
+svcmon 首次配置：
+1. 报告输出目录？（回车默认 ~/re/svcmon）
+2. stackplz 本地路径？（回车自动从 GitHub 下载）
+```
+
+如果 svcmon 已装且有 config → 跳过，直接到第 2 步。
+
+### 2. Spawn subagent
+
+把包名、preset、用户给的配置传给 `re:svcmon-analyzer`：
+
+```
+包名: <用户给的包名或关键词>
+preset: <根据用户意图选的>
+output_root: <用户给的路径或默认 ~/re/svcmon>
+stackplz_local: <用户给的路径或空（表示自动下载）>
 ```
 
 Preset 选择：
 - "分析检测/反调试/反注入" → `re_basic`
 - "分析反虚拟机" → `re_full`
-- "看文件" → `file`
-- "看网络" → `net`
 - 没说 → `re_basic`
 
-2. **输出结果**：subagent 返回后，把结果告诉用户。
+### 3. 输出结果
 
-不要自己跑 svcmon 命令、不要自己分析 trace、不要自己改 HTML。全部交给 subagent。
+subagent 返回后，把结果告诉用户。
+
+**不要自己跑采集/分析/HTML 注入，全部交给 subagent。**
