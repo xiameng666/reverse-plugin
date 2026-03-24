@@ -7,7 +7,7 @@
   },
   "plugins": [
     {
-      "name": "re",
+      "name": "svcmon",
       "description": "Stackplz-based Android syscall monitoring, symbolized backtrace, anti-debug/anti-inject/anti-VM detection analysis with AI-generated reports.",
       "version": "0.1.0",
       "source": "./",
