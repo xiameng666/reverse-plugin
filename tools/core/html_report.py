@@ -18,7 +18,7 @@ from .maps_reconstructor import (
 # Import categories from CLI (avoid circular by lazy import)
 def _get_categories():
     try:
-        from ..svcmon_cli import SYSCALL_CATEGORIES, _SC_TO_CAT
+        from ..svcMonitor_cli import SYSCALL_CATEGORIES, _SC_TO_CAT
         return SYSCALL_CATEGORIES, _SC_TO_CAT
     except ImportError:
         return {}, {}

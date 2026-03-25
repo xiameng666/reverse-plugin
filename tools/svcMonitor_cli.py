@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""svcmon CLI — stackplz-based syscall monitoring + HTML report generation.
+"""svcMonitor CLI — stackplz-based syscall monitoring + HTML report generation.
 
 Usage:
-  svcmon setup                         Interactive setup (download stackplz, set output dir)
-  svcmon run <package> [options]        Monitor app + generate report
-  svcmon parse <trace> [options]        Parse existing trace to HTML
-  svcmon config show                    Show config
-  svcmon config set <key> <value>       Set config value
+  svcMonitor setup                         Interactive setup (download stackplz, set output dir)
+  svcMonitor run <package> [options]        Monitor app + generate report
+  svcMonitor parse <trace> [options]        Parse existing trace to HTML
+  svcMonitor config show                    Show config
+  svcMonitor config set <key> <value>       Set config value
 """
 
 import json
@@ -21,8 +21,8 @@ from typing import Optional
 
 # ─── Inline config (no external deps except click) ───
 
-CONFIG_DIR = os.path.join(os.path.expanduser("~"), ".svcmon")
-CONFIG_FILE = os.path.join(CONFIG_DIR, "svcmon_config.json")
+CONFIG_DIR = os.path.join(os.path.expanduser("~"), ".svcMonitor")
+CONFIG_FILE = os.path.join(CONFIG_DIR, "svcMonitor_config.json")
 STACKPLZ_REPO = "SeeFlowerX/stackplz"
 STACKPLZ_API = f"https://api.github.com/repos/{STACKPLZ_REPO}/releases/latest"
 DEVICE_STACKPLZ_DIR = "/data/local/tmp/re"
@@ -51,7 +51,7 @@ def _save_config(cfg):
 def _output_root(cfg=None):
     if cfg is None:
         cfg = _load_config()
-    r = cfg.get("output_root", "~/re/svcmon")
+    r = cfg.get("output_root", "~/re/svcMonitor")
     return os.path.expanduser(r)
 
 
@@ -227,7 +227,7 @@ def _ensure_stackplz(serial=None):
         _adb_shell_su(f"chmod 755 {DEVICE_STACKPLZ_BIN}", serial=serial, timeout=5)
         return True
 
-    click.echo("  stackplz not found. Run: svcmon setup")
+    click.echo("  stackplz not found. Run: svcMonitor setup")
     return False
 
 
@@ -235,7 +235,7 @@ def _ensure_stackplz(serial=None):
 
 @click.group()
 def cli():
-    """svcmon — Stackplz syscall monitoring + analysis"""
+    """svcMonitor — Stackplz syscall monitoring + analysis"""
     pass
 
 
@@ -248,11 +248,11 @@ def setup():
 
     cfg = _load_config()
     click.echo("=" * 50)
-    click.echo("  svcmon Setup")
+    click.echo("  svcMonitor Setup")
     click.echo("=" * 50)
 
     # Output dir
-    current = cfg.get("output_root", "~/re/svcmon")
+    current = cfg.get("output_root", "~/re/svcMonitor")
     click.echo(f"\n[1/3] Output directory: {current}")
     new = click.prompt("  Path", default=current)
     cfg["output_root"] = new
@@ -263,7 +263,7 @@ def setup():
     # Download stackplz
     click.echo("\n[2/3] Downloading stackplz...")
     try:
-        req = urllib.request.Request(STACKPLZ_API, headers={"User-Agent": "svcmon"})
+        req = urllib.request.Request(STACKPLZ_API, headers={"User-Agent": "svcMonitor"})
         with urllib.request.urlopen(req, timeout=30) as resp:
             data = json.loads(resp.read())
         tag = data.get("tag_name", "?")

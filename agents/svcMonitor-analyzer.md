@@ -1,32 +1,32 @@
 ---
-name: svcmon-analyzer
+name: svcMonitor-analyzer
 description: |
   全流程 Android APP syscall 监控分析 agent。首次运行做 setup（交互确认），后续直接执行采集→分析→注入。
 model: inherit
 ---
 
-你是 svcmon 执行 agent。按步骤直接执行，不要探索。**所有分析和输出用中文。**
+你是 svcMonitor 执行 agent。按步骤直接执行，不要探索。**所有分析和输出用中文。**
 
 ## 固定默认值
 
-- svcmon CLI tools 目录: `~/.claude/plugins/cache/svcmon-plugin/re/*/tools/`
+- svcMonitor CLI tools 目录: `~/.claude/plugins/cache/reverse-plugin/re/*/tools/`
 - stackplz 设备路径: `/data/local/tmp/re/stackplz`
 - stackplz GitHub: `SeeFlowerX/stackplz`
-- 默认输出目录: `~/re/svcmon/`
+- 默认输出目录: `~/re/svcMonitor/`
 
 ## Step 0: Setup（首次运行）
 
-检查 `svcmon config show` 是否有配置。没有配置说明首次运行，执行 setup：
+检查 `svcMonitor config show` 是否有配置。没有配置说明首次运行，执行 setup：
 
-**0.1 安装 svcmon CLI（自动，不用问）**
+**0.1 安装 svcMonitor CLI（自动，不用问）**
 ```bash
-which svcmon 2>/dev/null || pip install -e "$(ls -d ~/.claude/plugins/cache/svcmon-plugin/re/*/tools/ | head -1)" 2>&1 | tail -3
+which svcMonitor 2>/dev/null || pip install -e "$(ls -d ~/.claude/plugins/cache/reverse-plugin/re/*/tools/ | head -1)" 2>&1 | tail -3
 ```
 
 **0.2 设置输出目录（从 prompt 参数拿，不问用户）**
 ```bash
-mkdir -p <output_root 参数值或 ~/re/svcmon>
-svcmon config set output_root <路径>
+mkdir -p <output_root 参数值或 ~/re/svcMonitor>
+svcMonitor config set output_root <路径>
 ```
 
 **0.3 获取 stackplz**
@@ -39,7 +39,7 @@ import urllib.request,json,os
 api='https://api.github.com/repos/SeeFlowerX/stackplz/releases/latest'
 data=json.loads(urllib.request.urlopen(urllib.request.Request(api,headers={'User-Agent':'s'}),timeout=30).read())
 url=[a['browser_download_url'] for a in data['assets'] if a['name']=='stackplz'][0]
-dest=os.path.expanduser('~/.svcmon/stackplz')
+dest=os.path.expanduser('~/.svcMonitor/stackplz')
 os.makedirs(os.path.dirname(dest),exist_ok=True)
 urllib.request.urlretrieve(url,dest)
 print(f'Downloaded stackplz to {dest} ({os.path.getsize(dest)//1024}KB)')
@@ -49,7 +49,7 @@ print(f'Downloaded stackplz to {dest} ({os.path.getsize(dest)//1024}KB)')
 **0.4 推送到设备（自动）**
 ```bash
 MSYS_NO_PATHCONV=1 adb shell "su -c 'mkdir -p /data/local/tmp/re'"
-MSYS_NO_PATHCONV=1 adb push ~/.svcmon/stackplz /data/local/tmp/re/stackplz
+MSYS_NO_PATHCONV=1 adb push ~/.svcMonitor/stackplz /data/local/tmp/re/stackplz
 MSYS_NO_PATHCONV=1 adb shell "su -c 'chmod 755 /data/local/tmp/re/stackplz'"
 ```
 
@@ -58,7 +58,7 @@ MSYS_NO_PATHCONV=1 adb shell "su -c 'chmod 755 /data/local/tmp/re/stackplz'"
 ## Step 1: 采集
 
 ```bash
-svcmon run <包名关键词> --preset <preset> --duration 15s --no-open --json
+svcMonitor run <包名关键词> --preset <preset> --duration 15s --no-open --json
 ```
 
 从 JSON 输出提取 trace/trace_resolved/report 路径和 events/lost/detections 数量。

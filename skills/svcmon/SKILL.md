@@ -3,7 +3,7 @@ name: svcmon
 description: 对 Android APP 进行 syscall 行为监控与检测分析。当用户要求监控 APP、分析闪退、分析环境检测、反调试、反注入、反虚拟机行为时使用。触发词：svcmon, syscall 监控, 检测分析, 闪退监控, 行为分析, 反虚拟机, 反注入
 ---
 
-# svcmon
+# svcMonitor
 
 ## 触发
 
@@ -15,27 +15,27 @@ description: 对 Android APP 进行 syscall 行为监控与检测分析。当用
 
 先跑：
 ```bash
-which svcmon 2>/dev/null && svcmon config show 2>&1
+which svcMonitor 2>/dev/null && svcMonitor config show 2>&1
 ```
 
-如果 svcmon 没装或 config 为空 → 用 AskUserQuestion 问用户：
+如果 svcMonitor 没装或 config 为空 → 用 AskUserQuestion 问用户：
 
 ```
-svcmon 首次配置：
-1. 报告输出目录？（回车默认 ~/re/svcmon）
+svcMonitor 首次配置：
+1. 报告输出目录？（回车默认 ~/re/svcMonitor）
 2. stackplz 本地路径？（回车自动从 GitHub 下载）
 ```
 
-如果 svcmon 已装且有 config → 跳过，直接到第 2 步。
+如果 svcMonitor 已装且有 config → 跳过，直接到第 2 步。
 
 ### 2. Spawn subagent
 
-把包名、preset、用户给的配置传给 `re:svcmon-analyzer`：
+把包名、preset、用户给的配置传给 `re:svcMonitor-analyzer`：
 
 ```
 包名: <用户给的包名或关键词>
 preset: <根据用户意图选的>
-output_root: <用户给的路径或默认 ~/re/svcmon>
+output_root: <用户给的路径或默认 ~/re/svcMonitor>
 stackplz_local: <用户给的路径或空（表示自动下载）>
 ```
 
