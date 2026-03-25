@@ -7,7 +7,7 @@ argument-hint: ""
 
 1. 安装 svcMonitor CLI（pip install）：
 ```bash
-TOOLS_DIR="$(ls -d ~/.claude/plugins/cache/reverse-plugin/re/*/tools/ 2>/dev/null | head -1)"
+TOOLS_DIR="$(python3 -c "from pathlib import Path; import glob; dirs=glob.glob(str(Path.home() / '.claude/plugins/cache/reverse-plugin/re/*/tools/')); print(dirs[0] if dirs else '')")"
 pip install -e "$TOOLS_DIR" 2>&1 | tail -5
 ```
 
@@ -19,15 +19,15 @@ reverse-plugin 初始化：
 
 3. 保存到全局配置（hook 会读这个文件）。**必须存绝对路径，不存 `~`**：
 ```bash
-mkdir -p ~/.reverse-plugin
 python3 -c "
-import json,os
-cfg_path = os.path.expanduser('~/.reverse-plugin/config.json')
-work_dir = os.path.expanduser('<用户给的路径或 ~/re>')  # 展开为绝对路径
-work_dir = os.path.abspath(work_dir)  # 确保是绝对路径
+from pathlib import Path
+import json
+cfg_dir = Path.home() / '.reverse-plugin'
+cfg_dir.mkdir(parents=True, exist_ok=True)
+cfg_path = cfg_dir / 'config.json'
+work_dir = str(Path('<用户给的路径或 ~/re>').expanduser().resolve())  # 展开为绝对路径
 cfg = {'work_dir': work_dir}
-with open(cfg_path, 'w') as f:
-    json.dump(cfg, f, indent=2)
+cfg_path.write_text(json.dumps(cfg, indent=2))
 print(f'配置已保存: {cfg_path}')
 print(f'工作目录: {work_dir}')
 "
@@ -37,22 +37,28 @@ print(f'工作目录: {work_dir}')
 
 4. 创建目录结构：
 ```bash
-mkdir -p <工作目录>/sessions
-mkdir -p <工作目录>/.config
+python3 -c "
+from pathlib import Path
+work_dir = Path('<工作目录>')
+(work_dir / 'sessions').mkdir(parents=True, exist_ok=True)
+(work_dir / '.config').mkdir(parents=True, exist_ok=True)
+print('目录结构已创建')
+"
 ```
 
 5. 下载 stackplz：
 ```bash
 python3 -c "
-import urllib.request,json,os
+import urllib.request,json
+from pathlib import Path
 api='https://api.github.com/repos/SeeFlowerX/stackplz/releases/latest'
 data=json.loads(urllib.request.urlopen(urllib.request.Request(api,headers={'User-Agent':'s'}),timeout=30).read())
 tag=data.get('tag_name','?')
 url=[a['browser_download_url'] for a in data['assets'] if a['name']=='stackplz'][0]
-dest=os.path.expanduser('<工作目录>/.config/stackplz')
-os.makedirs(os.path.dirname(dest),exist_ok=True)
-urllib.request.urlretrieve(url,dest)
-print(f'stackplz {tag} 下载完成: {dest} ({os.path.getsize(dest)//1024}KB)')
+dest=Path('<工作目录>') / '.config' / 'stackplz'
+dest.parent.mkdir(parents=True, exist_ok=True)
+urllib.request.urlretrieve(url, str(dest))
+print(f'stackplz {tag} 下载完成: {dest} ({dest.stat().st_size//1024}KB)')
 "
 ```
 

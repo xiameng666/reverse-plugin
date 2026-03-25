@@ -21,8 +21,8 @@ from typing import Optional
 
 # ─── Inline config (no external deps except click) ───
 
-CONFIG_DIR = os.path.join(os.path.expanduser("~"), ".svcMonitor")
-CONFIG_FILE = os.path.join(CONFIG_DIR, "svcMonitor_config.json")
+CONFIG_DIR = str(Path.home() / ".svcMonitor")
+CONFIG_FILE = str(Path.home() / ".svcMonitor" / "svcMonitor_config.json")
 STACKPLZ_REPO = "SeeFlowerX/stackplz"
 STACKPLZ_API = f"https://api.github.com/repos/{STACKPLZ_REPO}/releases/latest"
 DEVICE_STACKPLZ_DIR = "/data/local/tmp/re"
@@ -51,8 +51,10 @@ def _save_config(cfg):
 def _output_root(cfg=None):
     if cfg is None:
         cfg = _load_config()
-    r = cfg.get("output_root", "~/re/svcMonitor")
-    return os.path.expanduser(r)
+    r = cfg.get("output_root", "")
+    if r:
+        return str(Path(r).expanduser())
+    return str(Path.home() / "re" / "svcMonitor")
 
 
 def _is_windows():
@@ -252,11 +254,12 @@ def setup():
     click.echo("=" * 50)
 
     # Output dir
-    current = cfg.get("output_root", "~/re/svcMonitor")
+    default_out = str(Path.home() / "re" / "svcMonitor")
+    current = cfg.get("output_root", default_out)
     click.echo(f"\n[1/3] Output directory: {current}")
     new = click.prompt("  Path", default=current)
     cfg["output_root"] = new
-    actual = os.path.expanduser(new)
+    actual = str(Path(new).expanduser())
     os.makedirs(actual, exist_ok=True)
     click.echo(f"  → {actual}")
 
@@ -567,7 +570,7 @@ def config_set(key, value):
     cfg[key] = value
     _save_config(cfg)
     if key == "output_root":
-        actual = os.path.expanduser(value)
+        actual = str(Path(value).expanduser())
         os.makedirs(actual, exist_ok=True)
         click.echo(f"Set {key} = {value} → {actual}")
     else:

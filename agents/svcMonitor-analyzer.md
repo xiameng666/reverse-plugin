@@ -29,7 +29,7 @@ which svcMonitor && adb devices | head -3
 
 读取工作目录（从全局配置）：
 ```bash
-WORK_DIR=$(python3 -c "import json,os;print(json.load(open(os.path.expanduser('~/.reverse-plugin/config.json'))).get('work_dir',''))" 2>/dev/null)
+WORK_DIR=$(python3 -c "import json;from pathlib import Path;print(json.load(open(Path.home()/'.reverse-plugin'/'config.json')).get('work_dir',''))" 2>/dev/null)
 ```
 
 WORK_DIR 为空 → 告诉用户先跑 `/re:init`，然后停止。
