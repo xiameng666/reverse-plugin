@@ -61,20 +61,14 @@ print(f'stackplz {tag} 下载完成: {dest} ({os.path.getsize(dest)//1024}KB)')
 svcMonitor config set output_root <工作目录>/sessions
 ```
 
-7. 如果设备已连接，推送 stackplz：
-```bash
-adb devices
-MSYS_NO_PATHCONV=1 adb shell "su -c 'mkdir -p /data/local/tmp/re'"
-MSYS_NO_PATHCONV=1 adb push <工作目录>/.config/stackplz /data/local/tmp/re/stackplz
-MSYS_NO_PATHCONV=1 adb shell "su -c 'chmod 755 /data/local/tmp/re/stackplz'"
-```
-
 完成后输出：
 ```
 reverse-plugin 初始化完成！
   工作目录: <路径>
-  stackplz: 已下载
+  stackplz: 已下载到 <工作目录>/.config/stackplz
   svcMonitor CLI: 已安装
-  下次开新 session 会自动检测环境
+  工具会在执行时自动推送到设备
   使用 /re:svcmon <包名> 开始监控
 ```
+
+注意：不要在 init 阶段推送工具到手机。每个命令（如 /re:svcmon）执行时会自己检查并推送需要的工具。
