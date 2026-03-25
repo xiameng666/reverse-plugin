@@ -9,44 +9,32 @@ description: 对 Android APP 进行 syscall 行为监控与检测分析。当用
 
 用户说 `/re:svcmon <包名>` 或 "监控APP"、"分析检测" 时使用。
 
-## 你做三件事
+## 环境
 
-### 1. 首次运行检查（用 AskUserQuestion）
+session-start hook 已注入当前环境状态（设备、stackplz、session 目录）。
+从 hook 注入的上下文里拿 session 目录路径。
 
-先跑：
-```bash
-which svcMonitor 2>/dev/null && svcMonitor config show 2>&1
-```
+## 你做两件事
 
-如果 svcMonitor 没装或 config 为空 → 用 AskUserQuestion 问用户：
+### 1. Spawn subagent
 
-```
-svcMonitor 首次配置：
-1. 报告输出目录？（回车默认 ~/re/svcMonitor）
-2. stackplz 本地路径？（回车自动从 GitHub 下载）
-```
-
-如果 svcMonitor 已装且有 config → 跳过，直接到第 2 步。
-
-### 2. Spawn subagent
-
-把包名、preset、用户给的配置传给 `re:svcMonitor-analyzer`：
+把包名、preset、session 目录传给 `re:svcMonitor-analyzer`：
 
 ```
-包名: <用户给的包名或关键词>
-preset: <根据用户意图选的>
-output_root: <用户给的路径或默认 ~/re/svcMonitor>
-stackplz_local: <用户给的路径或空（表示自动下载）>
+包名: <用户给的>
+preset: <选的>
+session_dir: <从 hook 上下文拿到的 session 目录>
 ```
 
-Preset 选择：
+Preset：
 - "分析检测/反调试/反注入" → `re_basic`
 - "分析反虚拟机" → `re_full`
 - 没说 → `re_basic`
 
-### 3. 输出结果
+如果 hook 上下文里显示设备未连接或 stackplz 缺失，先提醒用户。
 
-subagent 返回后，把结果告诉用户。
+### 2. 输出结果
 
-**不要自己跑采集/分析/HTML 注入，全部交给 subagent。**
-**所有跟用户的交互用中文。**
+subagent 返回后告诉用户。
+
+**不要自己跑采集/分析/注入。全部交给 subagent。所有交互用中文。**

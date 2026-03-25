@@ -1,0 +1,108 @@
+#!/usr/bin/env bash
+# reverse-plugin SessionStart hook
+# 1. Ensure pip package installed
+# 2. Check device + stackplz
+# 3. Create session directory
+# 4. Inject context into conversation
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PLUGIN_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
+# ─── Config ───
+RE_HOME="${HOME}/re"
+CONFIG_DIR="${RE_HOME}/.config"
+CONFIG_FILE="${CONFIG_DIR}/config.json"
+STACKPLZ_LOCAL="${CONFIG_DIR}/stackplz"
+DEVICE_STACKPLZ="/data/local/tmp/re/stackplz"
+SESSIONS_DIR="${RE_HOME}/sessions"
+
+# ─── Helpers ───
+escape_for_json() {
+    local s="$1"
+    s="${s//\\/\\\\}"
+    s="${s//\"/\\\"}"
+    s="${s//$'\n'/\\n}"
+    s="${s//$'\r'/\\r}"
+    s="${s//$'\t'/\\t}"
+    printf '%s' "$s"
+}
+
+# ─── 1. Ensure pip package ───
+TOOLS_DIR=""
+for d in "${PLUGIN_ROOT}/tools" "$(ls -d "${HOME}/.claude/plugins/cache/reverse-plugin/re/"*/tools/ 2>/dev/null | head -1)"; do
+    if [ -f "$d/setup.py" ] 2>/dev/null; then
+        TOOLS_DIR="$d"
+        break
+    fi
+done
+
+pip_status="ok"
+if ! command -v svcMonitor &>/dev/null; then
+    if [ -n "$TOOLS_DIR" ]; then
+        pip install -e "$TOOLS_DIR" --quiet 2>/dev/null || true
+        pip_status="installed"
+    else
+        pip_status="not_found"
+    fi
+fi
+
+# ─── 2. Check device ───
+device_status="disconnected"
+device_model=""
+if command -v adb &>/dev/null; then
+    adb_out=$(adb devices -l 2>/dev/null || true)
+    if echo "$adb_out" | grep -q "device product:"; then
+        device_status="connected"
+        device_model=$(echo "$adb_out" | grep "device product:" | head -1 | sed 's/.*model:\([^ ]*\).*/\1/')
+    fi
+fi
+
+# ─── 3. Check stackplz ───
+stackplz_status="unknown"
+if [ "$device_status" = "connected" ]; then
+    if MSYS_NO_PATHCONV=1 adb shell "su -c 'ls ${DEVICE_STACKPLZ}'" &>/dev/null 2>&1; then
+        stackplz_status="on_device"
+    elif [ -f "$STACKPLZ_LOCAL" ]; then
+        stackplz_status="local_only"
+    else
+        stackplz_status="missing"
+    fi
+fi
+
+# ─── 4. Create session directory ───
+mkdir -p "$SESSIONS_DIR" 2>/dev/null || true
+SESSION_ID=$(date +"%Y%m%d_%H%M%S")
+SESSION_DIR="${SESSIONS_DIR}/${SESSION_ID}"
+mkdir -p "$SESSION_DIR" 2>/dev/null || true
+
+# ─── 5. Build context ───
+context="reverse-plugin session 环境状态:\\n"
+context+="- 工作目录: ${RE_HOME}\\n"
+context+="- 当前 session: ${SESSION_DIR}\\n"
+context+="- svcMonitor CLI: ${pip_status}\\n"
+context+="- 设备: ${device_status}"
+[ -n "$device_model" ] && context+=" (${device_model})"
+context+="\\n"
+context+="- stackplz: ${stackplz_status}\\n"
+
+if [ "$stackplz_status" = "missing" ]; then
+    context+="- ⚠ stackplz 未安装，首次使用 /re:svcmon 时会自动下载\\n"
+fi
+if [ "$device_status" = "disconnected" ]; then
+    context+="- ⚠ 设备未连接，请先连接 ADB\\n"
+fi
+
+context+="\\n使用 /re:svcmon 时，输出目录为: ${SESSION_DIR}/"
+
+escaped=$(escape_for_json "$context")
+
+# Output JSON for Claude Code context injection
+cat <<ENDJSON
+{
+  "hookSpecificOutput": {
+    "additionalContext": "${escaped}"
+  }
+}
+ENDJSON
