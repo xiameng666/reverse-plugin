@@ -329,13 +329,13 @@ def run(package, preset, duration, output, serial, open_browser, json_mode):
         click.echo(f"Invalid duration: {duration}")
         return
 
-    # Output dir: <root>/<package>/<timestamp>/
+    # Output dir: <root>/<package>/svc_<timestamp>/
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     if output:
-        out_dir = Path(output) / ts
+        out_dir = Path(output) / f"svc_{ts}"
     else:
         root = _output_root(cfg)
-        out_dir = Path(root) / package / ts
+        out_dir = Path(root) / package / f"svc_{ts}"
     out_dir.mkdir(parents=True, exist_ok=True)
 
     trace_dev = "/data/local/tmp/agent_trace.log"
