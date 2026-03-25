@@ -1,0 +1,3 @@
+# Keep shell scripts as LF (bash needs LF, not CRLF)
+hooks/session-start text eol=lf
+hooks/run-hook.cmd text eol=crlf
