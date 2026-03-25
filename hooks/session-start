@@ -1,91 +1,88 @@
-#!/usr/bin/env bash
-# reverse-plugin SessionStart hook
-# Lightweight: check device, create session dir, inject context
-# NO pip install, NO downloads — that's /re:init's job
-
-set -euo pipefail
-
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PLUGIN_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+#!/usr/bin/env python3
+"""reverse-plugin session-start hook. Cross-platform (Windows/Linux/Mac)."""
+import json, os, subprocess, sys
+from datetime import datetime
+from pathlib import Path
 
 # ─── Config ───
-# Read work_dir from fixed config location
-GLOBAL_CONFIG="${HOME}/.reverse-plugin/config.json"
-if [ -f "$GLOBAL_CONFIG" ]; then
-    RE_HOME=$(python3 -c "import json;print(json.load(open('$GLOBAL_CONFIG')).get('work_dir','$HOME/re'))" 2>/dev/null || echo "${HOME}/re")
-    # Expand ~
-    RE_HOME=$(eval echo "$RE_HOME")
-else
-    RE_HOME="${HOME}/re"
-fi
-CONFIG_DIR="${RE_HOME}/.config"
-SESSIONS_DIR="${RE_HOME}/sessions"
+GLOBAL_CONFIG = Path.home() / ".reverse-plugin" / "config.json"
+DEFAULT_WORK_DIR = str(Path.home() / "re")
 
-# ─── Helpers ───
-escape_for_json() {
-    local s="$1"
-    s="${s//\\/\\\\}"
-    s="${s//\"/\\\"}"
-    s="${s//$'\n'/\\n}"
-    s="${s//$'\r'/\\r}"
-    s="${s//$'\t'/\\t}"
-    printf '%s' "$s"
-}
+def load_config():
+    if GLOBAL_CONFIG.is_file():
+        try:
+            return json.loads(GLOBAL_CONFIG.read_text())
+        except Exception:
+            pass
+    return {}
 
-# ─── Check init status ───
-init_done="false"
-if [ -f "${CONFIG_DIR}/stackplz" ] && command -v svcMonitor &>/dev/null; then
-    init_done="true"
-fi
+cfg = load_config()
+work_dir = Path(cfg.get("work_dir", DEFAULT_WORK_DIR))
+sessions_dir = work_dir / "sessions"
+config_dir = work_dir / ".config"
 
-# ─── Check device ───
-device_status="disconnected"
-device_model=""
-if command -v adb &>/dev/null; then
-    adb_out=$(adb devices -l 2>/dev/null || true)
-    if echo "$adb_out" | grep -q "device product:"; then
-        device_status="connected"
-        device_model=$(echo "$adb_out" | grep "device product:" | head -1 | sed 's/.*model:\([^ ]*\).*/\1/')
-    fi
-fi
+# ─── Init check ───
+init_done = (config_dir / "stackplz").is_file()
+try:
+    subprocess.run(["svcMonitor", "--help"], capture_output=True, timeout=5)
+    cli_ok = True
+except Exception:
+    cli_ok = False
 
-# ─── Check stackplz on device ───
-stackplz_device="false"
-if [ "$device_status" = "connected" ] && [ "$init_done" = "true" ]; then
-    if MSYS_NO_PATHCONV=1 adb shell "su -c 'ls /data/local/tmp/re/stackplz'" &>/dev/null 2>&1; then
-        stackplz_device="true"
-    fi
-fi
+init_done = init_done and cli_ok
 
-# ─── Create session directory ───
-SESSION_ID=$(date +"%Y%m%d_%H%M%S")
-SESSION_DIR="${SESSIONS_DIR}/${SESSION_ID}"
-if [ "$init_done" = "true" ]; then
-    mkdir -p "$SESSION_DIR" 2>/dev/null || true
-fi
+# ─── Device check ───
+device_status = "disconnected"
+device_model = ""
+try:
+    r = subprocess.run(["adb", "devices", "-l"], capture_output=True, text=True, timeout=5)
+    for line in r.stdout.splitlines():
+        if "device product:" in line:
+            device_status = "connected"
+            for part in line.split():
+                if part.startswith("model:"):
+                    device_model = part.split(":", 1)[1]
+            break
+except Exception:
+    pass
+
+# ─── Stackplz on device ───
+stackplz_device = False
+if device_status == "connected" and init_done:
+    try:
+        env = os.environ.copy()
+        env["MSYS_NO_PATHCONV"] = "1"
+        r = subprocess.run(
+            ["adb", "shell", "su -c 'ls /data/local/tmp/re/stackplz'"],
+            capture_output=True, text=True, timeout=5, env=env)
+        stackplz_device = r.returncode == 0 and "stackplz" in r.stdout
+    except Exception:
+        pass
+
+# ─── Create session dir ───
+session_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+session_dir = sessions_dir / session_id
+if init_done:
+    session_dir.mkdir(parents=True, exist_ok=True)
 
 # ─── Build context ───
-context=""
-if [ "$init_done" = "false" ]; then
-    context+="reverse-plugin: 未初始化。请先运行 /re:init\\n"
-else
-    context+="reverse-plugin session:\\n"
-    context+="- 工作目录: ${RE_HOME}\\n"
-    context+="- session: ${SESSION_DIR}\\n"
-    context+="- 设备: ${device_status}"
-    [ -n "$device_model" ] && context+=" (${device_model})"
-    context+="\\n"
-    if [ "$stackplz_device" = "false" ] && [ "$device_status" = "connected" ]; then
-        context+="- stackplz: 需要推送到设备（svcMonitor run 时会自动 push）\\n"
-    fi
-fi
+if not init_done:
+    ctx = "reverse-plugin: 未初始化。请先运行 /re:init"
+else:
+    lines = [
+        "reverse-plugin session:",
+        f"- 工作目录: {work_dir}",
+        f"- session: {session_dir}",
+        f"- 设备: {device_status}" + (f" ({device_model})" if device_model else ""),
+    ]
+    if not stackplz_device and device_status == "connected":
+        lines.append("- stackplz: 需要推送（执行 /re:svcmon 时自动推送）")
+    ctx = "\\n".join(lines)
 
-escaped=$(escape_for_json "$context")
-
-cat <<ENDJSON
-{
-  "hookSpecificOutput": {
-    "additionalContext": "${escaped}"
-  }
-}
-ENDJSON
+# ─── Output JSON ───
+output = json.dumps({
+    "hookSpecificOutput": {
+        "additionalContext": ctx
+    }
+})
+print(output)

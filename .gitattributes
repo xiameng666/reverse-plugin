@@ -1,3 +1,2 @@
-# Keep shell scripts as LF (bash needs LF, not CRLF)
+# Python scripts: no line ending conversion
 hooks/session-start text eol=lf
-hooks/run-hook.cmd text eol=crlf
