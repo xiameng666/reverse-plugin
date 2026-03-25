@@ -9,7 +9,7 @@
     {
       "name": "re",
       "description": "Stackplz-based Android syscall monitoring, symbolized backtrace, anti-debug/anti-inject/anti-VM detection analysis with AI-generated reports.",
-      "version": "0.4.2",
+      "version": "0.4.3",
       "source": "./",
       "author": {
         "name": "xiameng666",

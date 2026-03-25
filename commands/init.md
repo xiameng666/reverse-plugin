@@ -17,19 +17,23 @@ reverse-plugin 初始化：
 工作目录？（回车默认 ~/re）
 ```
 
-3. 保存到全局配置（hook 会读这个文件）：
+3. 保存到全局配置（hook 会读这个文件）。**必须存绝对路径，不存 `~`**：
 ```bash
 mkdir -p ~/.reverse-plugin
 python3 -c "
 import json,os
 cfg_path = os.path.expanduser('~/.reverse-plugin/config.json')
-work_dir = '<用户给的路径或 ~/re>'
+work_dir = os.path.expanduser('<用户给的路径或 ~/re>')  # 展开为绝对路径
+work_dir = os.path.abspath(work_dir)  # 确保是绝对路径
 cfg = {'work_dir': work_dir}
 with open(cfg_path, 'w') as f:
     json.dump(cfg, f, indent=2)
 print(f'配置已保存: {cfg_path}')
+print(f'工作目录: {work_dir}')
 "
 ```
+
+**重要**：后续所有步骤中的 `<工作目录>` 都用 Python expanduser 后的绝对路径（如 `C:/Users/24151/re`），不要用 `~/re`。特别是 `adb push` 命令必须用绝对路径。
 
 4. 创建目录结构：
 ```bash
