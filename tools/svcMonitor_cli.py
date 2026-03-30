@@ -164,7 +164,7 @@ from core.categories import SYSCALL_CATEGORIES, SC_TO_CAT
 
 CATEGORIES = {k: v['syscalls'] for k, v in SYSCALL_CATEGORIES.items()}
 
-BASE_SC = 'openat,close,mmap,mprotect,munmap'
+BASE_SC = 'openat,mmap,mprotect,munmap'
 
 
 def _cat_sc(*names):
@@ -175,7 +175,7 @@ def _cat_sc(*names):
 
 
 PRESETS = {
-    're_basic': _cat_sc('文件操作', '进程管理', '信号处理'),
+    're_basic': _cat_sc('文件操作', '进程管理', '信号处理', '安全相关'),
     're_full': _cat_sc('文件操作', '进程管理', '内存管理', '网络通信', '信号处理', '安全相关'),
     'file': _cat_sc('文件操作'),
     'proc': _cat_sc('进程管理', '信号处理'),
@@ -364,7 +364,7 @@ def run(package, preset, duration, output, serial, open_browser, json_mode):
     cmd = (
         f"cd {DEVICE_STACKPLZ_DIR} && "
         f"am force-stop {package} 2>/dev/null; "
-        f"./stackplz -n {package} -s {all_sc} --stack --showtime -b 32 "
+        f"./stackplz -n {package} -s {all_sc} --stack --showtime -b 128 "
         f"> {trace_dev} 2>&1 & "
         f"SPID=$! && "
         f"pm clear {package} && "
@@ -575,50 +575,63 @@ def config_set(key, value):
 def _generate_resolved_trace(trace_path, resolved_path, recon):
     """Post-process trace.log: replace APK+offset with SO+offset in backtraces.
 
-    Lines like:
-      #00 pc 000000000012345  split_config.arm64_v8a.apk
-    become:
-      #00 pc 000000000012345  split_config.arm64_v8a.apk  →  libsecurity.so + 0xb858
+    Handles two formats:
+      stackplz native:  \t0x71255189f0 <split_config.arm64_v8a.apk + 0xcc9f0>
+      standard bt:      #00 pc 000000000012345  split_config.arm64_v8a.apk
     """
     import re as re_mod
 
-    # Build APK SO mapping from registered APKs
     apk_resolver = recon._apk_resolver
 
+    # Format 1: stackplz native  \t0xADDR <apk + 0xOFFSET>
+    stackplz_pattern = re_mod.compile(
+        r'^(\s*)(0x[0-9a-fA-F]+)\s+<(\S+\.apk)\s*\+\s*0x([0-9a-fA-F]+)>(.*)$'
+    )
+    # Format 2: standard  #NN pc OFFSET  apk
     bt_pattern = re_mod.compile(
         r'^(\s*#\d+\s+pc\s+)([0-9a-fA-F]+)\s+(\S+\.apk)(.*)$'
     )
 
+    def _resolve_apk(apk_name, offset):
+        for dev_path, local_path in recon._local_apks.items():
+            apk_basename = apk_name.rsplit('/', 1)[-1]
+            dev_basename = dev_path.rsplit('/', 1)[-1]
+            if apk_name in dev_path or apk_basename == dev_basename:
+                return apk_resolver.resolve(local_path, offset)
+        return None
+
     with open(trace_path, 'r', encoding='utf-8', errors='replace') as fin, \
          open(resolved_path, 'w', encoding='utf-8') as fout:
         for line in fin:
-            m = bt_pattern.match(line.rstrip())
+            stripped = line.rstrip()
+
+            # Try stackplz native format first (most common)
+            m = stackplz_pattern.match(stripped)
             if m:
-                prefix = m.group(1)
-                offset_hex = m.group(2)
-                apk_name = m.group(3)
-                rest = m.group(4)
+                indent, addr, apk_name, offset_hex, rest = m.groups()
                 offset = int(offset_hex, 16)
-
-                # Try to resolve APK offset to SO
-                resolved = None
-                for dev_path, local_path in recon._local_apks.items():
-                    if apk_name in dev_path or dev_path.endswith(apk_name.rsplit('/', 1)[-1]):
-                        resolved = apk_resolver.resolve(local_path, offset)
-                        break
-                    apk_basename = apk_name.rsplit('/', 1)[-1]
-                    dev_basename = dev_path.rsplit('/', 1)[-1]
-                    if apk_basename == dev_basename:
-                        resolved = apk_resolver.resolve(local_path, offset)
-                        break
-
+                resolved = _resolve_apk(apk_name, offset)
                 if resolved:
                     so_name, so_offset = resolved
-                    fout.write(f'{prefix}{offset_hex}  {apk_name}  →  {so_name} + 0x{so_offset:x}{rest}\n')
+                    fout.write(f'{indent}{addr} <{so_name} + 0x{so_offset:x}>{rest}\n')
                 else:
                     fout.write(line)
-            else:
-                fout.write(line)
+                continue
+
+            # Try standard backtrace format
+            m = bt_pattern.match(stripped)
+            if m:
+                prefix, offset_hex, apk_name, rest = m.groups()
+                offset = int(offset_hex, 16)
+                resolved = _resolve_apk(apk_name, offset)
+                if resolved:
+                    so_name, so_offset = resolved
+                    fout.write(f'{prefix}{offset_hex}  {so_name}{rest}\n')
+                else:
+                    fout.write(line)
+                continue
+
+            fout.write(line)
 
 
 def _parse_dur(s):

@@ -3,8 +3,8 @@
 SYSCALL_CATEGORIES = {
     '文件操作': {
         'icon': '📁',
-        'syscalls': ['openat', 'close', 'faccessat', 'unlinkat', 'readlinkat',
-                     'getdents64', 'read', 'write', 'newfstatat', 'statx',
+        'syscalls': ['openat', 'faccessat', 'unlinkat', 'readlinkat',
+                     'getdents64', 'newfstatat', 'statx',
                      'renameat2', 'mkdirat'],
     },
     '进程管理': {
