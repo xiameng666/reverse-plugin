@@ -18,7 +18,7 @@ model: inherit
 ## 脚本路径
 
 ```
-SCRIPTS=$(python3 -c "from pathlib import Path; import glob; print(glob.glob(str(Path.home()/'.claude/plugins/cache/reverse-plugin/re/*/tools/scripts/'))[0])")
+SCRIPTS=$(python -c "from pathlib import Path; import glob; dirs=glob.glob(str(Path.home()/'.claude/plugins/cache/reverse-plugin/re/*/tools/scripts/')); print(dirs[0] if dirs else 'E:/_github/reverse-plugin/tools/scripts')")
 ```
 
 ## Step 1: 检查环境
