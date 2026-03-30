@@ -38,6 +38,8 @@ def main():
     work_dir = Path(cfg["work_dir"])
     stackplz_local = str(work_dir / ".config" / "stackplz")
     sessions_dir = str(work_dir / "sessions")
+    print(f"WORK_DIR={work_dir}")
+    print(f"SESSIONS_DIR={sessions_dir}")
 
     # Push stackplz if not on device
     rc, out, _ = run(["adb", "shell", "su -c 'ls /data/local/tmp/re/stackplz'"])

@@ -60,6 +60,77 @@ Claude Code plugin for Android reverse engineering.
 
 ---
 
+### `/re:extractSo <so_path> <package>` — IDA 全量导出
+
+用 IDA headless 将 SO 文件全量导出（反汇编、反编译、调用图、字符串、xrefs）到 session 目录。
+
+```bash
+/re:extractSo E:/_github/re/sessions/com.example.app/svc_xxx/split_config.arm64_v8a.apk com.example.app
+/re:extractSo /path/to/libnative.so com.example.app
+```
+
+**前提：** `/re:init` 时配置了 IDA 路径和 ida-bridge 路径。
+
+**导出产物：**
+```
+sessions/<package>/static_<so_name>/
+├── meta.json           # 二进制元数据
+├── functions.json      # 所有函数列表
+├── strings.json        # 所有字符串 + xrefs
+├── callgraph.json      # 完整调用图
+├── xrefs.json          # ���据引用
+├── imports.json        # 导入函��
+├── exports.json        # 导出函数
+├── segments.json       # 内存段
+├── disasm/             # 每个函数的反汇编 .asm
+└── decompiled/         # 每个函数的伪代码 .c
+```
+
+导出后可直接用 Claude 的 Read 工具查看任意函数，或用 `/re:static` 做自动化分析。
+
+---
+
+### `/re:static <export_dir>` — 静态分析报告
+
+分析 idat 导出的 SO 数据，产出 SVC 调用模式、字符串解密点、保护特征报告。
+
+```bash
+/re:static E:/_github/ida-bridge/output/export_libbf4b
+/re:static E:/_github/ida-bridge/output/export_libxxx --output E:/_github/re/reports/
+```
+
+**分析维度：**
+
+| 维度 | 分析内容 |
+|------|---------|
+| SVC 模式 | wrapper/direct/inline 分类，MBA 混淆检测 |
+| Syscall NR | 明文 / MBA 混淆 / 未知 三类统计 |
+| 字符串解密 | 高调用量+解密特征(XOR/循环/位运算)的函数 |
+| 保护特征 | 反调试/反注入/反root/反VM/反frida/完整性校验 |
+| Hook 建议 | HIGH(解密函数) / MEDIUM(SVC wrapper) 优先级排序 |
+
+**输出：**
+- `static_report.json` — 机器可读的完整报告
+- `analysis.md` — AI 分析的 Markdown 报告
+
+---
+
+### `/re:correlate <static_report.json>` — 静态+动态交叉关联
+
+交叉关联 static 报告与 svcmon 动态 trace，自动生成 rustFrida hook 脚本。
+
+```bash
+/re:correlate report.json --trace trace.log --analysis analysis.md
+```
+
+**功能：**
+- SVC 调用点验证：已确认活跃 / 条件触发 / 动态生成
+- 检测链路重建：静态 callgraph + 动态调用栈
+- 字符串解密验证：候选函数运行时确认
+- 自动生成 rustFrida hook 脚本 + 分阶段执行计划
+
+---
+
 ## 计划中
 
 ### `/re:hook <包名>` — Frida Hook 编排
@@ -84,29 +155,82 @@ Claude Code plugin for Android reverse engineering.
 
 ---
 
+## Session 目录结构
+
+按包名分类，动态+静态数据放在一起：
+
+```
+<work_dir>/sessions/
+├── com.example.app/
+│   ├── svc_20260326_171526/          # 动态监控
+│   │   ├── trace.log
+│   │   ├── analysis.md
+│   │   └── report.html
+│   ├── static_libnative/             # 静态导出（IDA）
+│   │   ├── functions.json
+│   │   ├── callgraph.json
+│   │   ├── disasm/
+│   │   └── decompiled/
+│   └── correlate_20260327/           # 交叉关联
+│       ├── correlation_report.md
+│       └── hooks/
+└── com.other.app/
+    └── svc_20260328_100000/
+```
+
 ## 依赖
 
 - Claude Code v2.1+
 - Android 设备（root，ARM64，kernel 5.10+）
 - ADB
 - Python 3.8+ / pip / click
+- IDA Pro（可选，仅 `/re:extractSo` 需要）
+- [ida-bridge](https://github.com/user/ida-bridge)（可选，仅 `/re:extractSo` 需要）
 
 ## 架构
 
 ```
-/re:svcmon silicon
-     ↓
-主 Agent (skill)
-  ├── AskUserQuestion（首次 setup）
-  └── spawn subagent
-         ↓
-svcMonitor-analyzer (subagent)
-  ├── pip install svcMonitor CLI
-  ├── 下载 + push stackplz
-  ├── svcMonitor run（采集）
-  ├── 读 trace_resolved.log（分析）
-  ├── 注入 AI 分析到 HTML
-  └── 返回结果
+┌─ IDA 导出 ─────────────────────────────────┐
+│ /re:extractSo libnative.so com.example.app  │
+│      ↓                                      │
+│ so-extractor (subagent)                     │
+│   ├── extract_so.py → idat headless         │
+│   └── → static_<so>/ (disasm/ decompiled/)  │
+└─────────────────────────────────────────────┘
+          ↓ 导出数据
+┌─ 动态分析 ─────────────────────────────────┐
+│ /re:svcmon silicon                          │
+│      ↓                                      │
+│ svcMonitor-analyzer (subagent)              │
+│   ├── stackplz 采集 syscall + 栈回溯        │
+│   ├── trace 解析 + SO 偏移映射              │
+│   ├── AI 语义分析                           │
+│   └── → svc_<ts>/ (trace + analysis + html) │
+└─────────────────────────────────────────────┘
+          ↕ 交叉关联
+┌─ 静态分析 ─────────────────────────────────┐
+│ /re:static export_dir                       │
+│      ↓                                      │
+│ static-analyzer (subagent)                  │
+│   ├── static_analyze.py (SVC/解密/保护扫描) │
+│   ├── AI 深度分析 (反编译验证)              │
+│   └── → static_report.json + analysis.md    │
+└─────────────────────────────────────────────┘
+          ↓
+┌─ 交叉关联 + Hook 生成 ────────────────────┐
+│ /re:correlate report.json                   │
+│      ↓                                      │
+│ correlator (subagent)                       │
+│   ├── 静态+动态数据交叉验证                 │
+│   ├── 检测链路重建                          │
+│   ├── rustFrida hook 脚本自动生成           │
+│   └── → correlate_<ts>/ (report + hooks/)   │
+└─────────────────────────────────────────────┘
+          ↓
+┌─ 工具链 ───────────────────────────────────┐
+│ rustFrida (KPM无痕hook) ← hook 脚本        │
+│ edbgcli (uprobe+hwbp调试) ← 断点地址       │
+└─────────────────────────────────────────────┘
 ```
 
 ## License
