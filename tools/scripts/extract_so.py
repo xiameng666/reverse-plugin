@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""extract_so.py — 调用 ida-bridge 全量导出 SO 到 sessions 目录。
+"""extract_so.py — 调用 idat 全量导出 SO 到 sessions 目录。
 
 用法: python extract_so.py <so_path> <package_name> [--output <dir>]
 
 需要: ~/.reverse-plugin/config.json 中有 ida_path 和 work_dir
+IDA 脚本(ida_full_export.py, ida_run.py)已内置在同目录下。
 """
 import argparse
 import json
@@ -14,6 +15,8 @@ import sys
 import tempfile
 import time
 from pathlib import Path
+
+SCRIPTS_DIR = Path(__file__).parent
 
 
 def main():
@@ -73,41 +76,21 @@ def main():
         print("STATUS=EXISTS")
         return
 
-    # Locate ida_bridge scripts (bundled in reverse-plugin)
-    # ida_full_export.py + ida_run.py 应该在 ida-bridge/scripts/ 中
-    # 但我们也复制了关键文件到本 plugin 的 scripts/ 中
-    scripts_dir = Path(__file__).parent
-    ida_bridge_scripts = None
-
-    # 优先查找 ida-bridge 仓库
-    for candidate in [
-        Path.home() / ".claude" / "plugins" / "cache" / "ida-bridge",
-        Path(cfg.get("ida_bridge_path", "")),
-    ]:
-        if (candidate / "scripts" / "ida_full_export.py").exists():
-            ida_bridge_scripts = candidate / "scripts"
-            break
-
-    # 如果没有配置，用 IDA_BRIDGE_PATH 环境变量
-    if not ida_bridge_scripts:
-        env_path = os.environ.get("IDA_BRIDGE_PATH", "")
-        if env_path and (Path(env_path) / "scripts" / "ida_full_export.py").exists():
-            ida_bridge_scripts = Path(env_path) / "scripts"
-
-    if not ida_bridge_scripts:
-        print("ERROR=找不到 ida-bridge 脚本目录")
-        print("HINT=请在 /re:init 中配置 ida_bridge_path，或设置环境变量 IDA_BRIDGE_PATH")
+    # IDA scripts are bundled in the same directory
+    router_src = SCRIPTS_DIR / "ida_run.py"
+    export_script = SCRIPTS_DIR / "ida_full_export.py"
+    if not router_src.exists() or not export_script.exists():
+        print("ERROR=缺少 IDA 脚本 (ida_run.py / ida_full_export.py)")
         sys.exit(1)
 
     print(f"SO={so_path}")
     print(f"IDA={idat_exe}")
     print(f"OUTPUT_DIR={export_dir}")
-    print(f"SCRIPTS={ida_bridge_scripts}")
     print("PHASE=exporting...")
 
-    # Copy router to temp (IDA's -S has path length issues)
+    # Copy router to temp (IDA's -S has path length issues on Windows)
     tmp_router = Path(tempfile.gettempdir()) / "ida_bridge_run.py"
-    shutil.copy2(ida_bridge_scripts / "ida_run.py", tmp_router)
+    shutil.copy2(router_src, tmp_router)
 
     # Build command
     cmd = f'"{idat_exe}" -A -S"{tmp_router}" "{so_path}"'
@@ -115,7 +98,7 @@ def main():
     env = os.environ.copy()
     env["IDA_BRIDGE_SCRIPT"] = "full_export"
     env["IDA_BRIDGE_ARGS"] = json.dumps([str(export_dir)])
-    env["IDA_BRIDGE_SCRIPT_DIR"] = str(ida_bridge_scripts)
+    env["IDA_BRIDGE_SCRIPT_DIR"] = str(SCRIPTS_DIR)
 
     start = time.time()
     try:
@@ -140,7 +123,6 @@ def main():
 
     # Verify output
     if not summary_file.exists():
-        # 可能 IDA 直接写了文件但没有 summary
         has_files = (export_dir / "functions.json").exists()
         if not has_files:
             print("ERROR=导出目录为空，IDA 可能未正确运行")

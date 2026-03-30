@@ -184,8 +184,7 @@ sessions/<package>/static_<so_name>/
 - Android 设备（root，ARM64，kernel 5.10+）
 - ADB
 - Python 3.8+ / pip / click
-- IDA Pro（可选，仅 `/re:extractSo` 需要）
-- [ida-bridge](https://github.com/user/ida-bridge)（可选，仅 `/re:extractSo` 需要）
+- IDA Pro（可选，仅 `/re:extractSo` 需要，IDAPython 脚本已内置）
 
 ## 架构
 

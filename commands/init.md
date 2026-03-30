@@ -24,14 +24,7 @@ IDA Pro 安装目录？（用于 /re:extractSo 导出 SO）
 例: F:/IDA Professional 9.1
 ```
 
-4. 用 AskUserQuestion 问用户 ida-bridge 目录（如果上一步配置了 IDA）：
-```
-ida-bridge 脚本目录？
-例: E:/_github/ida-bridge
-留空跳过
-```
-
-5. 保存到全局配置（hook 会读这个文件）。**必须存绝对路径，不存 `~`**：
+4. 保存到全局配置（hook 会读这个文件）。**必须存绝对路径，不存 `~`**：
 ```bash
 python -c "
 from pathlib import Path
@@ -39,19 +32,12 @@ import json
 cfg_dir = Path.home() / '.reverse-plugin'
 cfg_dir.mkdir(parents=True, exist_ok=True)
 cfg_path = cfg_dir / 'config.json'
-# 读取已有配置
 cfg = json.loads(cfg_path.read_text()) if cfg_path.exists() else {}
-# 更新字段
 work_dir = str(Path('<用户给的工作目录或 ~/re>').expanduser().resolve())
 cfg['work_dir'] = work_dir
-# IDA 路径（如果用户填了）
 ida_path = '<用户给的 IDA 路径或空>'
 if ida_path:
     cfg['ida_path'] = str(Path(ida_path).resolve())
-# ida-bridge 路径（如果用户填了）
-bridge_path = '<用户给的 ida-bridge 路径或空>'
-if bridge_path:
-    cfg['ida_bridge_path'] = str(Path(bridge_path).resolve())
 cfg_path.write_text(json.dumps(cfg, indent=2))
 print(f'配置已保存: {cfg_path}')
 for k, v in cfg.items():
@@ -61,7 +47,7 @@ for k, v in cfg.items():
 
 **重要**：后续所有步骤中的 `<工作目录>` 都用 Python expanduser 后的绝对路径（如 `C:/Users/24151/re`），不要用 `~/re`。特别是 `adb push` 命令必须用绝对路径。
 
-6. 创建目录结构：
+5. 创建目录结构：
 ```bash
 python -c "
 from pathlib import Path
@@ -72,7 +58,7 @@ print('目录结构已创建')
 "
 ```
 
-7. 下载 stackplz：
+6. 下载 stackplz：
 ```bash
 python -c "
 import urllib.request,json
@@ -88,7 +74,7 @@ print(f'stackplz {tag} 下载完成: {dest} ({dest.stat().st_size//1024}KB)')
 "
 ```
 
-8. 保存 svcMonitor CLI 配置：
+7. 保存 svcMonitor CLI 配置：
 ```bash
 svcMonitor config set output_root <工作目录>/sessions
 ```
@@ -99,8 +85,7 @@ reverse-plugin 初始化完成！
   工作目录: <路径>
   stackplz: 已下载到 <工作目录>/.config/stackplz
   svcMonitor CLI: 已安装
-  IDA: <路径或"未配置">
-  ida-bridge: <路径或"未配置">
+  IDA: <路径或"未配置（/re:extractSo 不可用）">
   工具会在执行时自动推送到设备
   使用 /re:svcmon <包名> 开始监控
   使用 /re:extractSo <so路径> <包名> 导出 SO
