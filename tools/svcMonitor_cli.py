@@ -391,26 +391,44 @@ def run(package, preset, duration, output, serial, open_browser, json_mode):
 
     apk_local = None
     apk_device = None
-    try:
-        info = _adb_shell_su(f"pm path {package}", serial=serial, timeout=10)
-        paths = [l.strip()[8:] for l in info.splitlines() if l.strip().startswith("package:")]
-        for p in paths:
-            if "split_config.arm64" in p:
-                apk_device = p
+
+    # Check if APK already exists in shared so/ directory (from /re:extractSo)
+    so_dir = Path(_output_root(cfg)) / package / "so"
+    shared_apk = None
+    if so_dir.exists():
+        for f in so_dir.iterdir():
+            if f.suffix == ".apk":
+                shared_apk = f
                 break
-        if not apk_device:
+
+    if shared_apk:
+        # Reuse pre-pulled APK
+        apk_local = str(shared_apk)
+        # Guess device path from APK name for register_local_apk
+        apk_device = f"/data/app/~~placeholder~~/{package}/{shared_apk.name}"
+        click.echo(f"  apk: {shared_apk.name} (reused from so/)")
+    else:
+        # Pull APK from device
+        try:
+            info = _adb_shell_su(f"pm path {package}", serial=serial, timeout=10)
+            paths = [l.strip()[8:] for l in info.splitlines() if l.strip().startswith("package:")]
             for p in paths:
-                if "base.apk" in p:
+                if "split_config.arm64" in p:
                     apk_device = p
                     break
-        if not apk_device and paths:
-            apk_device = paths[0]
-        if apk_device:
-            apk_local = str(out_dir / apk_device.rsplit("/", 1)[-1])
-            _adb_pull(apk_device, apk_local, serial=serial)
-            click.echo(f"  apk: {apk_device.rsplit('/', 1)[-1]}")
-    except RuntimeError:
-        pass
+            if not apk_device:
+                for p in paths:
+                    if "base.apk" in p:
+                        apk_device = p
+                        break
+            if not apk_device and paths:
+                apk_device = paths[0]
+            if apk_device:
+                apk_local = str(out_dir / apk_device.rsplit("/", 1)[-1])
+                _adb_pull(apk_device, apk_local, serial=serial)
+                click.echo(f"  apk: {apk_device.rsplit('/', 1)[-1]}")
+        except RuntimeError:
+            pass
 
     # 7. Parse + HTML
     click.echo("[7/7] Generating report...")
