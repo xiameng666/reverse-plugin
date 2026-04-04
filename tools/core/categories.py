@@ -5,7 +5,12 @@ SYSCALL_CATEGORIES = {
         'icon': '📁',
         'syscalls': ['openat', 'faccessat', 'unlinkat', 'readlinkat',
                      'getdents64', 'newfstatat', 'statx',
-                     'renameat2', 'mkdirat'],
+                     'renameat2', 'mkdirat', 'close'],
+    },
+    '读写操作': {
+        'icon': '📖',
+        'syscalls': ['read', 'write', 'pread64', 'pwrite64',
+                     'readv', 'writev', 'lseek'],
     },
     '进程管理': {
         'icon': '⚙',
@@ -21,7 +26,7 @@ SYSCALL_CATEGORIES = {
     '网络通信': {
         'icon': '🌐',
         'syscalls': ['socket', 'bind', 'listen', 'connect', 'accept',
-                     'accept4', 'sendto', 'recvfrom'],
+                     'accept4', 'sendto', 'recvfrom', 'sendmsg', 'recvmsg'],
     },
     '信号处理': {
         'icon': '📡',
@@ -31,12 +36,18 @@ SYSCALL_CATEGORIES = {
         'icon': '🔒',
         'syscalls': ['seccomp', 'setns', 'unshare', 'bpf'],
     },
-    'Tier2': {
+    '系统杂项': {
         'icon': '➕',
-        'syscalls': ['ioctl', 'lseek', 'readv', 'writev', 'fcntl', 'sendfile',
-                     'sendmsg', 'recvmsg', 'setsockopt', 'getsockopt', 'mount',
-                     'umount2', 'prlimit64', 'capget', 'capset', 'setuid',
+        'syscalls': ['ioctl', 'fcntl', 'pipe2', 'dup', 'dup3', 'futex',
+                     'setsockopt', 'getsockopt', 'prlimit64', 'sendfile',
+                     'mount', 'umount2', 'capget', 'capset', 'setuid',
                      'setgid', 'finit_module', 'init_module', 'delete_module'],
+    },
+    '环境检测': {
+        'icon': '🔍',
+        'syscalls': ['openat', 'faccessat', 'newfstatat', 'readlinkat', 'statfs',
+                     'read', 'getdents64', 'ptrace', 'prctl', 'kill', 'tgkill',
+                     'clone', 'wait4', 'mprotect', 'rt_sigaction'],
     },
 }
 

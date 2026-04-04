@@ -164,7 +164,7 @@ from core.categories import SYSCALL_CATEGORIES, SC_TO_CAT
 
 CATEGORIES = {k: v['syscalls'] for k, v in SYSCALL_CATEGORIES.items()}
 
-BASE_SC = 'openat,mmap,mprotect,munmap'
+BASE_SC = 'openat'
 
 
 def _cat_sc(*names):
@@ -177,7 +177,10 @@ def _cat_sc(*names):
 PRESETS = {
     're_basic': _cat_sc('文件操作', '进程管理', '信号处理', '安全相关'),
     're_full': _cat_sc('文件操作', '进程管理', '内存管理', '网络通信', '信号处理', '安全相关'),
+    're_io': _cat_sc('文件操作', '读写操作'),
+    'detect': _cat_sc('环境检测'),
     'file': _cat_sc('文件操作'),
+    'io': _cat_sc('读写操作'),
     'proc': _cat_sc('进程管理', '信号处理'),
     'mem': _cat_sc('内存管理'),
     'net': _cat_sc('网络通信'),
@@ -299,7 +302,7 @@ def setup():
 @click.argument("package")
 @click.option("--preset", default="re_basic",
               type=click.Choice(list(PRESETS.keys())), help="Syscall preset")
-@click.option("--duration", default="15s", help="Wait after launch")
+@click.option("--duration", default="60s", help="Wait after launch")
 @click.option("-o", "--output", default=None, help="Output directory (overrides config)")
 @click.option("-s", "--serial", default=None, help="ADB device serial")
 @click.option("--open/--no-open", "open_browser", default=False)
@@ -364,13 +367,18 @@ def run(package, preset, duration, output, serial, open_browser, json_mode):
     cmd = (
         f"cd {DEVICE_STACKPLZ_DIR} && "
         f"am force-stop {package} 2>/dev/null; "
-        f"./stackplz -n {package} -s {all_sc} --stack --showtime -b 128 "
+        f"./stackplz -n {package} -s {all_sc} --stack --showtime -b 64 "
         f"> {trace_dev} 2>&1 & "
         f"SPID=$! && "
         f"pm clear {package} && "
+        f"find /data/app -path '*{package}*/oat' -type d -exec rm -rf {{}} + 2>/dev/null; "
         f"sleep 5 && "
         f"monkey -p {package} -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1 && "
-        f"sleep {dur_sec} && "
+        f"ELAPSED=0; "
+        f"while [ $ELAPSED -lt {dur_sec} ]; do "
+        f"  sleep 2; ELAPSED=$((ELAPSED+2)); "
+        f"  pidof {package} >/dev/null 2>&1 || break; "
+        f"done && "
         f"kill $SPID 2>/dev/null; wait $SPID 2>/dev/null"
     )
     try:
@@ -593,24 +601,21 @@ def config_set(key, value):
 def _generate_resolved_trace(trace_path, resolved_path, recon):
     """Post-process trace.log: replace APK+offset with SO+offset in backtraces.
 
-    Handles two formats:
-      stackplz native:  \t0x71255189f0 <split_config.arm64_v8a.apk + 0xcc9f0>
-      standard bt:      #00 pc 000000000012345  split_config.arm64_v8a.apk
+    Strategy:
+    1. Try absolute address via recon.resolve() (handles dynamic mmap regions)
+    2. Fall back to filename matching for .apk entries (handles APK-embedded SOs
+       even when recon doesn't have the mapping — e.g. re_io without mmap events)
     """
     import re as re_mod
 
     apk_resolver = recon._apk_resolver
 
-    # Format 1: stackplz native  \t0xADDR <apk + 0xOFFSET>
+    # Match any stackplz backtrace line: \t0xADDR <filename + 0xOFFSET>
     stackplz_pattern = re_mod.compile(
-        r'^(\s*)(0x[0-9a-fA-F]+)\s+<(\S+\.apk)\s*\+\s*0x([0-9a-fA-F]+)>(.*)$'
-    )
-    # Format 2: standard  #NN pc OFFSET  apk
-    bt_pattern = re_mod.compile(
-        r'^(\s*#\d+\s+pc\s+)([0-9a-fA-F]+)\s+(\S+\.apk)(.*)$'
+        r'^(\s*)(0x[0-9a-fA-F]+)\s+<(\S+)\s*\+\s*0x([0-9a-fA-F]+)>(.*)$'
     )
 
-    def _resolve_apk(apk_name, offset):
+    def _resolve_apk_by_name(apk_name, offset):
         for dev_path, local_path in recon._local_apks.items():
             apk_basename = apk_name.rsplit('/', 1)[-1]
             dev_basename = dev_path.rsplit('/', 1)[-1]
@@ -623,28 +628,22 @@ def _generate_resolved_trace(trace_path, resolved_path, recon):
         for line in fin:
             stripped = line.rstrip()
 
-            # Try stackplz native format first (most common)
             m = stackplz_pattern.match(stripped)
             if m:
-                indent, addr, apk_name, offset_hex, rest = m.groups()
-                offset = int(offset_hex, 16)
-                resolved = _resolve_apk(apk_name, offset)
-                if resolved:
-                    so_name, so_offset = resolved
-                    fout.write(f'{indent}{addr} <{so_name} + 0x{so_offset:x}>{rest}\n')
-                else:
-                    fout.write(line)
-                continue
+                indent, addr_hex, orig_name, offset_hex, rest = m.groups()
+                abs_addr = int(addr_hex, 16)
+                file_offset = int(offset_hex, 16)
 
-            # Try standard backtrace format
-            m = bt_pattern.match(stripped)
-            if m:
-                prefix, offset_hex, apk_name, rest = m.groups()
-                offset = int(offset_hex, 16)
-                resolved = _resolve_apk(apk_name, offset)
+                # Strategy 1: resolve by absolute address
+                resolved = recon.resolve(abs_addr)
+
+                # Strategy 2: if file is .apk, resolve by APK filename + offset
+                if not resolved and orig_name.endswith('.apk'):
+                    resolved = _resolve_apk_by_name(orig_name, file_offset)
+
                 if resolved:
                     so_name, so_offset = resolved
-                    fout.write(f'{prefix}{offset_hex}  {so_name}{rest}\n')
+                    fout.write(f'{indent}{addr_hex} <{so_name} + 0x{so_offset:x}>{rest}\n')
                 else:
                     fout.write(line)
                 continue
