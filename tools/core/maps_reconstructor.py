@@ -41,21 +41,22 @@ class ApkSoResolver:
         if not os.path.isfile(apk_path):
             return False
         try:
+            import struct
             entries = []
             with zipfile.ZipFile(apk_path, 'r') as zf:
-                for info in zf.infolist():
-                    name = info.filename
-                    if name.endswith('.so') and '/arm64' in name:
-                        # header_offset is the start of the local file header
-                        # The actual data starts after the local file header
-                        # For stored (uncompressed) files, we can calculate this
-                        if info.compress_type == 0:  # STORED, not compressed
-                            # Local file header: 30 bytes fixed + filename + extra
-                            data_offset = (info.header_offset + 30
-                                           + len(info.filename.encode('utf-8'))
-                                           + len(info.extra))
-                            so_name = name.rsplit('/', 1)[-1]
-                            entries.append((data_offset, info.file_size, so_name))
+                with open(apk_path, 'rb') as raw:
+                    for info in zf.infolist():
+                        name = info.filename
+                        if name.endswith('.so') and '/arm64' in name:
+                            if info.compress_type == 0:  # STORED, not compressed
+                                # Read LOCAL file header to get actual extra length
+                                # (central dir extra may differ due to alignment padding)
+                                raw.seek(info.header_offset + 26)
+                                fname_len = struct.unpack('<H', raw.read(2))[0]
+                                extra_len = struct.unpack('<H', raw.read(2))[0]
+                                data_offset = info.header_offset + 30 + fname_len + extra_len
+                                so_name = name.rsplit('/', 1)[-1]
+                                entries.append((data_offset, info.file_size, so_name))
             entries.sort(key=lambda x: x[0])
             self._apk_entries[apk_path] = entries
             return bool(entries)
