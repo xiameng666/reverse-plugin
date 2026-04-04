@@ -64,6 +64,22 @@ print(f'OUTPUT_DIR={d}')
 MSYS_NO_PATHCONV=1 adb pull /data/local/tmp/svc_trace.log "<OUTPUT_DIR>/trace.log"
 ```
 
+同时 pull zygote maps 和 split APK（用于 SO 偏移解析）：
+
+```bash
+MSYS_NO_PATHCONV=1 adb shell "su -c 'cat /proc/\$(pidof zygote64)/maps'" > "<OUTPUT_DIR>/zygote_maps.txt" 2>/dev/null
+```
+
+```bash
+MSYS_NO_PATHCONV=1 adb shell "su -c 'pm path <包名>'" 2>&1
+```
+
+从输出中找到包含 `split_config.arm64` 的 APK 路径，pull 到 OUTPUT_DIR：
+
+```bash
+MSYS_NO_PATHCONV=1 adb pull <split_config.arm64_v8a.apk 设备路径> "<OUTPUT_DIR>/split_config.arm64_v8a.apk"
+```
+
 ## 步骤 4: spawn subagent 分析
 
 spawn `re:svcMonitor-analyzer` subagent，prompt 传：
@@ -72,6 +88,8 @@ spawn `re:svcMonitor-analyzer` subagent，prompt 传：
 包名: <完整包名>
 trace 文件路径: <OUTPUT_DIR>/trace.log
 输出目录: <OUTPUT_DIR>
+zygote maps: <OUTPUT_DIR>/zygote_maps.txt（如果存在）
+APK: <OUTPUT_DIR>/split_config.arm64_v8a.apk（如果存在）
 ```
 
 等 subagent 返回，把结果输出给用户。

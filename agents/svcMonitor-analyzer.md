@@ -22,11 +22,13 @@ SCRIPTS=$(python -c "from pathlib import Path; import glob; dirs=glob.glob(str(P
 
 ## Step 1: 生成 HTML 报告
 
+主 agent 可能还会传入 zygote maps 和 APK 路径，用于 SO 偏移解析。
+
 ```bash
-svcMonitor parse "<trace文件路径>" -p <包名> -o "<输出目录>/report.html" --no-open
+svcMonitor parse "<trace文件路径>" -p <包名> --maps "<输出目录>/zygote_maps.txt" --apk "<输出目录>/split_config.arm64_v8a.apk" -o "<输出目录>/report.html" --no-open
 ```
 
-如果失败，跳过，只做分析。
+如果 maps 或 apk 文件不存在，去掉对应参数。如果命令失败，跳过，只做分析。
 
 ## Step 2: 分析
 
